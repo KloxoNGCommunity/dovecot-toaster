@@ -71,6 +71,9 @@ BuildRequires: mysql-devel
 BuildRequires: openldap-devel
 BuildRequires: krb5-devel
 BuildRequires: openssl-devel
+BuildRequires:  make
+BuildRequires:	gcc
+BuildRequires: gcc-c++
 %if %{?fedora}00%{?rhel} > 5
 BuildRequires: quota-devel
 BuildRequires: quota
