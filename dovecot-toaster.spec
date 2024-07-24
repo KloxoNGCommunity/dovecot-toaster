@@ -13,7 +13,7 @@ Name:      %{real_name}-toaster
 Summary:   Secure imap and pop3 server
 Epoch:     1
 Version:   2.2.36.4
-Release:   1.kng%{?dist}
+Release:   2.kng%{?dist}
 License:   MIT and LGPLv2
 #          dovecot itself is MIT,
 #          pigeonhole is LGPLv2,
@@ -67,7 +67,7 @@ BuildRequires: automake
 BuildRequires: pkgconfig
 BuildRequires: sqlite-devel
 BuildRequires: postgresql-devel
-BuildRequires: mysql-devel
+BuildRequires: mariadb-devel
 BuildRequires: openldap-devel
 BuildRequires: krb5-devel
 BuildRequires: openssl-devel
