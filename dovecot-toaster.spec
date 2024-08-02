@@ -37,6 +37,7 @@ Source9:   dovecot.sysconfig
 Source10:   dovecot.tmpfilesd
 Source11:  dovecot.local.conf
 Source12:  dovecot.logrotate
+Source13:  dovecot.lib.x86_64
 Source14:   dovecot.conf.5.gz
 Source15: prestartscript
 Source100:  supervise-dovecot-run
@@ -375,6 +376,9 @@ pushd docinstall
   rm -f securecoding.txt \
         thread-refs.txt
 popd
+
+# add ld.so dovecot config
+install -Dp %{SOURCE13} %{buildroot}%{_sysconfdir}/ld.so.conf.d/%{real_name}.conf
 
 # Qmail logs
 #-----------------------------------------------------------------------------
