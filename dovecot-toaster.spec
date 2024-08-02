@@ -263,7 +263,7 @@ fi
     --with-ssldir=%{ssldir}                    \
     --with-solr                                \
 	--with-systemd \
-		systemdsystemunitdir=/lib/systemd/system \
+		systemdsystemunitdir=/usr/lib/systemd/system \
     --with-docs
 
 sed -i 's|/etc/ssl|/etc/pki/dovecot|' doc/mkcert.sh doc/example-config/conf.d/10-ssl.conf
@@ -526,7 +526,7 @@ make check
 %attr(0600,root,root) %config(noreplace) %{_sysconfdir}/sysconfig/dovecot
 %endif
 
-#%%config %{_sysconfdir}/ld.so.conf.d/%{real_name}.conf
+#%%config %%{_sysconfdir}/ld.so.conf.d/%%{real_name}.conf
 
 %dir %{_sysconfdir}/dovecot
 %dir %{_sysconfdir}/dovecot/conf.d
