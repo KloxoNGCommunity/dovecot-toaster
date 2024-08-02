@@ -5,15 +5,19 @@
 %define	_qtlogdir /var/log/qmail
 %define	_spath %{_qdir}/supervise
 
-%define 	dversion 2.2
-%global 	phversion 0.4.24.2
+%define 	dversion 2.3
+%global pigeonholever 0.5.16
+
+%global __provides_exclude_from %{_docdir}
+%global __requires_exclude_from %{_docdir}
+
 %define 	real_name dovecot
 
 Name:      %{real_name}-toaster
 Summary:   Secure imap and pop3 server
 Epoch:     1
-Version:   2.2.36.4
-Release:   2.kng%{?dist}
+Version:   2.3.16
+Release:   1.kng%{?dist}
 License:   MIT and LGPLv2
 #          dovecot itself is MIT,
 #          pigeonhole is LGPLv2,
@@ -21,25 +25,20 @@ License:   MIT and LGPLv2
 
 Group:     System Environment/Daemons
 Vendor:    QmailToaster
-Packager:  Eric Shubert <qmt-build@datamatters.us>
 URL:       http://www.dovecot.org/
-
-Source:    http://dovecot.org/releases/2.2/%{real_name}-%{version}.tar.gz
-Source1:   https://pigeonhole.dovecot.org/releases/2.2/%{real_name}-2.2-pigeonhole-%{phversion}.tar.gz
-Source2:   dovecot.pam.el5
-Source3:   dovecot.pam.el6
-Source4:   dovecot.conf.5.gz
-Source5:   dovecot.prestartscript
-Source6:   dovecot.tmpfilesd
-Source7:   dovecot.init
-Source8:   dovecot.sysconfig
-Source9:   dovecot.conf
-Source10:  dovecot.toaster.conf
+Source: http://www.dovecot.org/releases/2.3/%{real_name}-%{version}%{?prever}.tar.gz
+Source1:   dovecot.init
+Source2:   dovecot.pam
+Source3:   dovecot.prestartscript
+Source4:  dovecot.toaster.conf
+Source5:   dovecot.conf
+Source8: http://pigeonhole.dovecot.org/releases/2.3/dovecot-2.3-pigeonhole-%{pigeonholever}.tar.gz
+Source9:   dovecot.sysconfig
+Source10:   dovecot.tmpfilesd
 Source11:  dovecot.local.conf
 Source12:  dovecot.logrotate
-Source13:  dovecot.lib.x86_64
-Source14:  dovecot.lib.i386
-
+Source14:   dovecot.conf.5.gz
+Source15: prestartscript
 Source100:  supervise-dovecot-run
 Source101:  supervise-dovecot-log-run
 
@@ -48,42 +47,62 @@ Patch1: dovecot-2.0-defaultconfig.patch
 Patch2: dovecot-1.0.beta2-mkcert-permissions.patch
 Patch3: dovecot-1.0.rc7-mkcert-paths.patch
 
-Patch4: dovecot-2.1.10-reload.patch
-Patch5: dovecot-2.1-privatetmp.patch
+#wait for network
+Patch6: dovecot-2.1.10-waitonline.patch
 
 # adding systemd patch from https://src.fedoraproject.org/rpms/dovecot/tree/master
 Patch8: dovecot-2.2.20-initbysystemd.patch
 Patch9: dovecot-2.2.22-systemd_w_protectsystem.patch
 
-#wait for network
-Patch6: dovecot-2.1.10-waitonline.patch
-Patch7: dovecot-2.2.7-10c0aae82d0d.patch
-Requires: openssl >= 0.9.7f-4
+# sent upstream, rhbz#1630380
+Patch11: dovecot-2.2.36-aclfix.patch
+
+Patch13: dovecot-2.2.36-bigkey.patch
+
+# do not use own implementation of HMAC, use OpenSSL for certification purposes
+# not sent upstream as proper fix would use dovecot's lib-dcrypt but it introduces
+# hard to break circular dependency between lib and lib-dcrypt
+Patch14: dovecot-2.3.6-opensslhmac.patch
+
+# from upstream, for dovecot < 2.3.17, s390x FTBFS fix
+Patch15: dovecot-2.3.16-ftbfsbigend.patch
+Patch16: dovecot-2.3.16-keeplzma.patch
+
+# from upstream, for <= 2.3.19.1, rhbz#2106232
+Patch17: dovecot-2.3.19.1-7bad6a24.patch
+
+# from upstream, for < 2.3.19.1, rhbz#2128857
+Patch18: dovecot-2.3.18-9f300239..4596d399.patch
+Patch19: dovecot-2.3.18-bdf447e4.patch
+
+
+
+
+BuildRequires: openssl-devel, pam-devel, zlib-devel, bzip2-devel, libcap-devel
+BuildRequires: libtool, autoconf, automake, pkgconfig
+
 Requires: qmail-toaster >= 1.03
 Obsoletes: qmail-pop3d-toaster
-BuildRequires: libtool
-BuildRequires: autoconf
-BuildRequires: automake
-BuildRequires: pkgconfig
+
 BuildRequires: sqlite-devel
 BuildRequires: postgresql-devel
 BuildRequires: mariadb-devel
+BuildRequires: mariadb-connector-c-devel
 BuildRequires: openldap-devel
 BuildRequires: krb5-devel
-BuildRequires: openssl-devel
 BuildRequires:  make
 BuildRequires:	gcc
 BuildRequires: gcc-c++
-%if %{?fedora}00%{?rhel} > 5
 BuildRequires: quota-devel
 BuildRequires: quota
 BuildRequires: libcap-devel
-BuildRequires: pam-devel
-%endif
+BuildRequires: xz-devel
+BuildRequires: lz4-devel
+BuildRequires: multilib-rpm-config
 
 # gettext-devel is needed for running autoconf because of the
 # presence of AM_ICONV
-#BuildRequires: gettext-devel
+BuildRequires: gettext-devel
 
 # Explicit Runtime Requirements for executable
 Requires: openssl >= 0.9.7f-4
@@ -179,17 +198,25 @@ This package provides the development files for dovecot.
 
 #-------------------------------------------------------------------------------
 %prep
-#-------------------------------------------------------------------------------
-%setup -q -n %{real_name}-%{version}%{?prever} -a 1
-#%patch1 -p1 -b .default-settings
-#%patch2 -p1 -b .mkcert-permissions
-#%patch3 -p1 -b .mkcert-paths
-#%patch4 -p1 -b .reload
-#%patch5 -p1 -b .privatetmp
-#%patch6 -p1 -b .waitonline
-#%patch7 -p1 -b .10c0aae82d0d
-#%patch8 -p1 -b .initbysystemd
-#%patch9 -p1 -b .systemd_w_protectsystem
+%setup -q -n %{real_name}-%{version}%{?prever} -a 8
+%patch -P 1 -p1 -b .default-settings
+%patch -P 2 -p1 -b .mkcert-permissions
+%patch -P 3 -p1 -b .mkcert-paths
+%patch -P 6 -p1 -b .waitonline
+%patch -P 8 -p1 -b .initbysystemd
+%patch -P 9 -p1 -b .systemd_w_protectsystem
+%patch -P 11 -p1 -b .aclfix
+%patch -P 13 -p1 -b .bigkey
+%patch -P 14 -p1 -b .opensslhmac
+%patch -P 15 -p1 -b .ftbfsbigend
+%patch -P 16 -p1 -b .keeplzma
+%patch -P 17 -p1 -b .7bad6a24
+%patch -P 19 -p1 -b .bdf447e4
+pushd dovecot-2*3-pigeonhole-%{pigeonholever}
+%patch -P 18 -p1 -b .9f300239..4596d399
+
+popd
+
 sed -i '/DEFAULT_INCLUDES *=/s|$| '"$(pkg-config --cflags libclucene-core)|" src/plugins/fts-lucene/Makefile.in
 
 #-------------------------------------------------------------------------------
@@ -198,18 +225,12 @@ sed -i '/DEFAULT_INCLUDES *=/s|$| '"$(pkg-config --cflags libclucene-core)|" src
 #required for fdpass.c line 125,190: dereferencing type-punned pointer will break strict-aliasing rules
 %global _hardened_build 1
 
-#%if %{?fedora}0 > 150 || %{?rhel}0 > 70
-#export CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing -Wno-deprecated-declarations"
-#export LDFLAGS="-Wl,-z,now -Wl,-z,relro"     
-#%else
-export CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing"
-export LDFLAGS="-Wl,-z,now -Wl,-z,relro"
-#%endif
 
-# these are in f19, but don't work yet in COS6
-#export CFLAGS="%{__global_cflags} -fno-strict-aliasing"
-#export LDFLAGS="-Wl,-z,now -Wl,-z,relro %{__global_ldflags}"
-#autoreconf -I . -fiv #required for aarch64 support
+export CFLAGS="%{__global_cflags} -fno-strict-aliasing -fstack-reuse=none"
+export LDFLAGS="-Wl,-z,now -Wl,-z,relro %{?__global_ldflags}"
+
+mkdir -p m4
+autoreconf -I . -fiv #required for aarch64 support
 
 ## MR -- dirty trick for enable it
 if [ -f /usr/kerberos/bin/krb5-config ] ; then
@@ -218,6 +239,7 @@ fi
 
 %configure                                     \
     INSTALL_DATA="install -c -p -m644"         \
+    --with-systemd               \
     --docdir=%{_docdir}/%{real_name}-%{version}     \
     --disable-static                           \
     --disable-rpath                            \
@@ -233,30 +255,21 @@ fi
     --with-vpopmail=/etc/libvpopmail           \
     --with-zlib                                \
     --with-libcap                              \
-%if %{?fedora}0 > 150 || %{?rhel}0 >60
     --with-lucene                              \
-%endif
     --with-ssl=openssl                         \
     --with-ssldir=%{ssldir}                    \
     --with-solr                                \
-%if %{?fedora}0 > 140 || %{?rhel}0 > 60
      --with-systemdsystemunitdir=%{_unitdir}	\
-%endif
     --with-docs
 
 sed -i 's|/etc/ssl|/etc/pki/dovecot|' doc/mkcert.sh doc/example-config/conf.d/10-ssl.conf
-sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
-sed -i 's|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
+#sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
+#sed -i 's|^runpath_var=LD_RUN_PATH|runpath_var=DIE_RPATH_DIE|g' libtool
 
 make %{?_smp_mflags}
 
 #pigeonhole
-pushd %{real_name}-%{dversion}-pigeonhole-%{phversion}
-
-# shubes - refer http://www.mail-archive.com/dovecot@dovecot.org/msg33640.html
-#          thanks to ATrpms for this.
-#rm -f m4/lt* m4/libtool.m4 build-aux/ltmain.sh
-#autoreconf -fiv
+pushd dovecot-2*3-pigeonhole-%{pigeonholever}
 
 # required for snapshot
 [ -f configure ] || autoreconf -fiv
@@ -285,40 +298,45 @@ make install DESTDIR=%{buildroot}
 mv %{buildroot}%{_docdir}/%{real_name}-%{version} \
       %{_builddir}/%{real_name}-%{version}%{?prever}/docinstall
 
-pushd %{real_name}-%{dversion}-pigeonhole-%{phversion}
+# fix multilib issues
+%multilib_fix_c_header --file %{_includedir}/dovecot/config.h
+
+pushd %{real_name}-%{dversion}-pigeonhole-%{pigeonholever}
 make install DESTDIR=%{buildroot}
+
 mv %{buildroot}%{_docdir}/%{real_name}-%{version} \
       %{buildroot}%{_docdir}/%{real_name}-pigeonhole
+
 install -m 644 AUTHORS ChangeLog COPYING COPYING.LGPL INSTALL NEWS README \
       %{buildroot}%{_docdir}/%{real_name}-pigeonhole
 popd
 
-%if %{?fedora}00%{?rhel} < 6
-  install -Dp %{SOURCE2}  %{buildroot}%{_sysconfdir}/pam.d/dovecot
-%else
-  install -Dp %{SOURCE3}  %{buildroot}%{_sysconfdir}/pam.d/dovecot
-%endif
 
-install -Dp %{SOURCE4}    %{buildroot}%{_mandir}/man5/dovecot.conf.5.gz
+  install -p -D -m 644 %{SOURCE2}  %{buildroot}%{_sysconfdir}/pam.d/dovecot
 
-install     %{SOURCE5}    %{buildroot}%{_libexecdir}/dovecot
+install     %{SOURCE3}    %{buildroot}%{_libexecdir}/dovecot
+
+install -p -D -m 644 %{SOURCE14}    %{buildroot}%{_mandir}/man5/dovecot.conf.5.gz
+
+#install waitonline script
+install -p -D -m 755 %{SOURCE15} %{buildroot}%{_libexecdir}/dovecot/prestartscript
 
 # generate ghost .pem files
 mkdir -p  %{buildroot}%{ssldir}/certs
 mkdir -p  %{buildroot}%{ssldir}/private
 touch     %{buildroot}%{ssldir}/certs/dovecot.pem
-touch     %{buildroot}%{ssldir}/private/dovecot.pem
 chmod 600 %{buildroot}%{ssldir}/certs/dovecot.pem
+touch     %{buildroot}%{ssldir}/private/dovecot.pem
 chmod 600 %{buildroot}%{ssldir}/private/dovecot.pem
 
 %if %{?fedora}0 > 140 || %{?rhel}0 > 60
-  install -Dp %{SOURCE6}  %{buildroot}%{_tmpfilesdir}/dovecot.conf
+  install -p -D -m 644 %{SOURCE10}  %{buildroot}%{_tmpfilesdir}/dovecot.conf
 %else
-  install -Dp %{SOURCE7}  %{buildroot}%{_initddir}/dovecot
-  install -DP %{SOURCE8}  %{buildroot}%{_sysconfdir}/sysconfig/dovecot
+install -p -D -m 755 %{SOURCE1} %{buildroot}%{_initddir}/dovecot
+install -p -D -m 600 %{SOURCE9} %{buildroot}%{_sysconfdir}/sysconfig/dovecot
 %endif
 
-mkdir -p %{buildroot}/var/run/dovecot/{login,empty}
+mkdir -p %{buildroot}/var/run/dovecot/{login,empty,token-login}
 
 # Install dovecot configuration and dovecot-openssl.cnf
 mkdir -p %{buildroot}%{_sysconfdir}/dovecot/conf.d
@@ -335,8 +353,8 @@ install -p -m 644 %{buildroot}%{_docdir}/%{real_name}-pigeonhole/example-config/
 install -p -m 644 doc/dovecot-openssl.cnf \
       %{buildroot}%{ssldir}/dovecot-openssl.cnf
 
-install     %{SOURCE9}   %{buildroot}%{_sysconfdir}/dovecot
-install     %{SOURCE10}  %{buildroot}%{_sysconfdir}/dovecot/toaster.conf
+install     %{SOURCE5}   %{buildroot}%{_sysconfdir}/dovecot
+install     %{SOURCE4}  %{buildroot}%{_sysconfdir}/dovecot/toaster.conf
 install     %{SOURCE11}  %{buildroot}%{_sysconfdir}/dovecot/local.conf
 install -Dp %{SOURCE12}  %{buildroot}%{_sysconfdir}/logrotate.d/dovecot
 
@@ -353,13 +371,6 @@ pushd docinstall
   rm -f securecoding.txt \
         thread-refs.txt
 popd
-
-# add ld.so dovecot config
-%ifarch x86_64
-  install -Dp %{SOURCE13} %{buildroot}%{_sysconfdir}/ld.so.conf.d/%{real_name}.conf
-%else
-  install -Dp %{SOURCE14} %{buildroot}%{_sysconfdir}/ld.so.conf.d/%{real_name}.conf
-%endif
 
 # Qmail logs
 #-----------------------------------------------------------------------------
@@ -423,7 +434,8 @@ fi
 
 install -d -m 0755 -g dovecot -d /var/run/dovecot
 install -d -m 0755            -d /var/run/dovecot/empty
-install -d -m 0750 -g dovenull   /var/run/dovecot/login
+install -d -m 0750 -g dovenull -d /var/run/dovecot/login
+install -d -m 0750 -g dovenull -d /var/run/dovecot/token-login
 [ -x /sbin/restorecon ] && /sbin/restorecon -R /var/run/dovecot
 [ -x /sbin/ldconfig ] && /sbin/ldconfig
 
@@ -482,9 +494,9 @@ fi
 #-------------------------------------------------------------------------------
 %check
 #-------------------------------------------------------------------------------
-#make check
-#cd dovecot-%{dversion}-pigeonhole-%{phversion}
-#make check
+make check
+cd dovecot-%{dversion}-pigeonhole-%{pigeonholever}
+make check
 
 #-------------------------------------------------------------------------------
 %files
@@ -496,12 +508,14 @@ fi
 %{_bindir}/doveadm
 %{_bindir}/doveconf
 %{_bindir}/dsync
+%{_bindir}/dovecot-sysreport
+
 
 %if %{?fedora}0 > 140 || %{?rhel}0 > 60
 %config(noreplace) %{_tmpfilesdir}/dovecot.conf
 %{_unitdir}/dovecot.service
 # commenting this line this we may need for dovecot 2.3
-#%{_unitdir}/dovecot-init.service
+%{_unitdir}/dovecot-init.service
 %{_unitdir}/dovecot.socket
 %else
 %{_initddir}/dovecot
@@ -522,12 +536,14 @@ fi
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/10-logging.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/10-mail.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/10-master.conf
+%config(noreplace) %{_sysconfdir}/dovecot/conf.d/10-metrics.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/10-ssl.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/15-lda.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/15-mailboxes.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/20-imap.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/20-lmtp.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/20-pop3.conf
+%config(noreplace) %{_sysconfdir}/dovecot/conf.d/20-submission.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/90-acl.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/90-quota.conf
 %config(noreplace) %{_sysconfdir}/dovecot/conf.d/90-plugin.conf
@@ -555,24 +571,40 @@ fi
 %dir %{_libdir}/dovecot/auth
 %dir %{_libdir}/dovecot/dict
 %{_libdir}/dovecot/doveadm
+%exclude %{_libdir}/dovecot/doveadm/*sieve*
 %{_libdir}/dovecot/*.so.*
 #these (*.so files) are plugins not a devel files
 %{_libdir}/dovecot/*_plugin.so
 %exclude %{_libdir}/dovecot/*_sieve_plugin.so
+%{_libdir}/dovecot/auth/lib20_auth_var_expand_crypt.so
 %{_libdir}/dovecot/auth/libauthdb_imap.*
 %{_libdir}/dovecot/auth/libauthdb_ldap.*
 %{_libdir}/dovecot/auth/libmech_gssapi.*
 %{_libdir}/dovecot/auth/libdriver_sqlite.so
 %{_libdir}/dovecot/dict/libdriver_sqlite.so
+%{_libdir}/dovecot/dict/libdict_ldap.so
 %{_libdir}/dovecot/libdriver_sqlite.so
 %{_libdir}/dovecot/libssl_iostream_openssl.so
+%{_libdir}/dovecot/libfs_compress.so
+%{_libdir}/dovecot/libfs_crypt.so
+%{_libdir}/dovecot/libfs_mail_crypt.so
+%{_libdir}/dovecot/libdcrypt_openssl.so
+%{_libdir}/dovecot/lib20_var_expand_crypt.so
+%{_libdir}/dovecot/old-stats/libold_stats_mail.so
+%{_libdir}/dovecot/old-stats/libstats_auth.so
 %dir %{_libdir}/dovecot/settings
 
 %{_libexecdir}/dovecot
 %exclude %{_libexecdir}/%{real_name}/managesieve*
 
-%ghost /var/run/dovecot
+%dir %attr(0755,root,dovecot) %ghost /var/run/dovecot
+%attr(0750,root,dovenull) %ghost /var/run/dovecot/login
+%attr(0750,root,dovenull) %ghost /var/run/dovecot/token-login
+%attr(0755,root,root) %ghost /var/run/dovecot/empty
+
 %attr(0750,dovecot,dovecot) /var/lib/dovecot
+
+%{_datadir}/%{real_name}
 
 %{_mandir}/man1/deliver.1.gz
 %{_mandir}/man1/doveadm*.1.gz
@@ -616,8 +648,10 @@ fi
 %{_libexecdir}/%{real_name}/managesieve
 %{_libexecdir}/%{real_name}/managesieve-login
 
+%{_libdir}/dovecot/doveadm/*sieve*
 %{_libdir}/dovecot/*_sieve_plugin.so
 %{_libdir}/dovecot/settings/libmanagesieve_*.so
+%{_libdir}/dovecot/settings/libpigeonhole_*.so
 %{_libdir}/dovecot/sieve/
 
 %{_mandir}/man1/sieve-dump.1.gz
