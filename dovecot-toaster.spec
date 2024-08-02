@@ -47,6 +47,7 @@ Patch1: dovecot-2.0-defaultconfig.patch
 Patch2: dovecot-1.0.beta2-mkcert-permissions.patch
 Patch3: dovecot-1.0.rc7-mkcert-paths.patch
 Patch4: dovecot_2.3.20_vpopmail_auth_rev01.patch
+Patch5: dovecot-2.3.14-opensslv3.patch
 #wait for network
 Patch6: dovecot-2.1.10-waitonline.patch
 
@@ -203,6 +204,7 @@ This package provides the development files for dovecot.
 %patch -P 2 -p1 -b .mkcert-permissions
 %patch -P 3 -p1 -b .mkcert-paths
 %patch -P 4 -p1 -b .vpopmail_auth
+%patch -P 5 -p1 -b .opensslv3
 %patch -P 6 -p1 -b .waitonline
 %patch -P 8 -p1 -b .initbysystemd
 %patch -P 9 -p1 -b .systemd_w_protectsystem
@@ -260,7 +262,8 @@ fi
     --with-ssl=openssl                         \
     --with-ssldir=%{ssldir}                    \
     --with-solr                                \
-    --with-systemdsystemunitdir=%{_unitdir}   \
+	--with-systemd \
+		systemdsystemunitdir=/lib/systemd/system \
     --with-docs
 
 sed -i 's|/etc/ssl|/etc/pki/dovecot|' doc/mkcert.sh doc/example-config/conf.d/10-ssl.conf
