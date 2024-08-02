@@ -17,7 +17,7 @@ Name:      %{real_name}-toaster
 Summary:   Secure imap and pop3 server
 Epoch:     1
 Version:   2.3.16
-Release:   1.kng%{?dist}
+Release:   2.kng%{?dist}
 License:   MIT and LGPLv2
 #          dovecot itself is MIT,
 #          pigeonhole is LGPLv2,
@@ -46,7 +46,7 @@ Source101:  supervise-dovecot-log-run
 Patch1: dovecot-2.0-defaultconfig.patch
 Patch2: dovecot-1.0.beta2-mkcert-permissions.patch
 Patch3: dovecot-1.0.rc7-mkcert-paths.patch
-
+Patch4: dovecot_2.3.20_vpopmail_auth_rev01.patch
 #wait for network
 Patch6: dovecot-2.1.10-waitonline.patch
 
@@ -86,7 +86,7 @@ Obsoletes: qmail-pop3d-toaster
 
 BuildRequires: sqlite-devel
 BuildRequires: postgresql-devel
-BuildRequires: mariadb-devel
+#BuildRequires: mariadb-devel
 BuildRequires: mariadb-connector-c-devel
 BuildRequires: openldap-devel
 BuildRequires: krb5-devel
@@ -202,6 +202,7 @@ This package provides the development files for dovecot.
 %patch -P 1 -p1 -b .default-settings
 %patch -P 2 -p1 -b .mkcert-permissions
 %patch -P 3 -p1 -b .mkcert-paths
+%patch -P 4 -p1 -b .vpopmail_auth
 %patch -P 6 -p1 -b .waitonline
 %patch -P 8 -p1 -b .initbysystemd
 %patch -P 9 -p1 -b .systemd_w_protectsystem
@@ -259,7 +260,7 @@ fi
     --with-ssl=openssl                         \
     --with-ssldir=%{ssldir}                    \
     --with-solr                                \
-     --with-systemdsystemunitdir=%{_unitdir}	\
+    --with-systemdsystemunitdir=%{_unitdir}   \
     --with-docs
 
 sed -i 's|/etc/ssl|/etc/pki/dovecot|' doc/mkcert.sh doc/example-config/conf.d/10-ssl.conf
@@ -522,7 +523,7 @@ make check
 %attr(0600,root,root) %config(noreplace) %{_sysconfdir}/sysconfig/dovecot
 %endif
 
-%config %{_sysconfdir}/ld.so.conf.d/%{real_name}.conf
+#%%config %{_sysconfdir}/ld.so.conf.d/%{real_name}.conf
 
 %dir %{_sysconfdir}/dovecot
 %dir %{_sysconfdir}/dovecot/conf.d
@@ -619,7 +620,7 @@ make check
 %attr(0750,qmaill,qmail) %dir %{_qtlogdir}/dovecot
 
 %{_libdir}/dovecot/libfs_compress.so
-%{_libdir}/dovecot/stats/libstats*.so
+#%%{_libdir}/dovecot/stats/libstats*.so
 %{_datadir}/dovecot/stopwords/stopwords*.txt
 
 #-------------------------------------------------------------------------------
